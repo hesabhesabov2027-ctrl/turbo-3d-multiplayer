@@ -1,1 +1,31 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turbo 3D Racing</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="menu">
+    <h1>🏎️ TURBO 3D</h1>
+    <p>Onlayn maşın yarışı</p>
+    <button id="start">YARIŞA BAŞLA</button>
+    <p id="status">Oyun yüklənir...</p>
+  </div>
 
+  <div id="hud">
+    <span id="speed">Sürət: 0</span>
+    <span id="players">Oyunçular: 1</span>
+  </div>
+
+  <div id="controls">
+    <button id="left">⬅️</button>
+    <button id="gas">⬆️</button>
+    <button id="right">➡️</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
