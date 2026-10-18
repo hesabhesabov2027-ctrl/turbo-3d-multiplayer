@@ -1,3 +1,4 @@
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -8,13 +9,20 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*"
+    origin: "*",
+    methods: ["GET", "POST"]
   }
 });
 
 app.use(express.static(path.join(__dirname, "../public")));
 
-const players = {};
+// Yalnız hazırda qoşulmuş oyunçular
+const players = Object.create(null);
+
+function getNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
 
 io.on("connection", (socket) => {
   console.log("Oyunçu qoşuldu:", socket.id);
@@ -22,10 +30,11 @@ io.on("connection", (socket) => {
   players[socket.id] = {
     x: 0,
     z: 4,
-    rotation: 0
+    rotation: 0,
+    speed: 0
   };
 
-  // Yeni oyunçuya hazırda qoşulmuş oyunçuları göndər
+  // Yeni oyunçuya bütün hazırkı oyunçuları göndər
   socket.emit("players", players);
 
   // Digər oyunçulara yeni oyunçunu bildir
@@ -34,29 +43,34 @@ io.on("connection", (socket) => {
     player: players[socket.id]
   });
 
-  // Hərəkəti qəbul et və digər oyunçulara ötür
+  console.log("Aktiv oyunçular:", Object.keys(players).length);
+
+  // Oyunçunun hərəkətini qəbul et
   socket.on("move", (data) => {
-    if (!players[socket.id]) return;
+    if (!players[socket.id] || !data) return;
 
     players[socket.id] = {
-      x: Number(data.x) || 0,
-      z: Number(data.z) || 4,
-      rotation: Number(data.rotation) || 0
+      x: getNumber(data.x, 0),
+      z: getNumber(data.z, 4),
+      rotation: getNumber(data.rotation, 0),
+      speed: Math.max(0, Math.min(200, getNumber(data.speed, 0)))
     };
 
+    // Hərəkət məlumatını digər oyunçulara göndər
     socket.broadcast.emit("playerMoved", {
       id: socket.id,
       player: players[socket.id]
     });
   });
 
-  // Oyunçu çıxanda siyahıdan sil
+  // Oyunçu çıxanda onu siyahıdan sil
   socket.on("disconnect", () => {
-    console.log("Oyunçu çıxdı:", socket.id);
-
     delete players[socket.id];
 
     io.emit("playerLeft", socket.id);
+
+    console.log("Oyunçu çıxdı:", socket.id);
+    console.log("Aktiv oyunçular:", Object.keys(players).length);
   });
 });
 
