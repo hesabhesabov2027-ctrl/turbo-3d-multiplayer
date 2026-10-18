@@ -1,7 +1,9 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
+// ==============================
 // SƏHNƏ
+// ==============================
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 scene.fog = new THREE.Fog(0x87ceeb, 35, 150);
@@ -19,7 +21,9 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
+// ==============================
 // İŞIQLAR
+// ==============================
 scene.add(new THREE.HemisphereLight(0xffffff, 0x466644, 2));
 
 const sun = new THREE.DirectionalLight(0xffffff, 2);
@@ -27,7 +31,9 @@ sun.position.set(-5, 15, 8);
 sun.castShadow = true;
 scene.add(sun);
 
+// ==============================
 // TORPAQ
+// ==============================
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(200, 300),
   new THREE.MeshStandardMaterial({ color: 0x328b42 })
@@ -36,7 +42,9 @@ ground.rotation.x = -Math.PI / 2;
 ground.position.z = -60;
 scene.add(ground);
 
+// ==============================
 // YOL
+// ==============================
 const road = new THREE.Mesh(
   new THREE.PlaneGeometry(12, 300),
   new THREE.MeshStandardMaterial({ color: 0x33343a })
@@ -45,7 +53,9 @@ road.rotation.x = -Math.PI / 2;
 road.position.set(0, 0.02, -60);
 scene.add(road);
 
+// ==============================
 // YOL XƏTLƏRİ
+// ==============================
 const markings = [];
 
 for (let z = 10; z > -200; z -= 8) {
@@ -59,7 +69,9 @@ for (let z = 10; z > -200; z -= 8) {
   markings.push(line);
 }
 
+// ==============================
 // MAŞIN YARAT
+// ==============================
 function makeCar(color) {
   const car = new THREE.Group();
 
@@ -105,11 +117,15 @@ function makeCar(color) {
   return car;
 }
 
+// ==============================
 // SƏNİN MAŞININ
+// ==============================
 const myCar = makeCar(0xff3028);
 myCar.position.set(0, 0, 4);
 
+// ==============================
 // MULTIPLAYER
+// ==============================
 const socket = io();
 
 const otherCars = Object.create(null);
@@ -127,24 +143,29 @@ const status = document.getElementById("status");
 const speedLabel = document.getElementById("speed");
 const playersLabel = document.getElementById("players");
 
-// OYUNÇU SAYINI DÜZGÜN HESABLA
+// ==============================
+// OYUNÇU SAYI
+// ==============================
 function updatePlayerCount() {
-  const count = Object.keys(otherCars).length +
-    (socket.connected ? 1 : 0);
+  const count =
+    Object.keys(otherCars).length + (socket.connected ? 1 : 0);
 
-  playersLabel.textContent = "Oyunçular: " + count;
+  if (playersLabel) {
+    playersLabel.textContent = "Oyunçular: " + count;
+  }
 }
 
+// ==============================
 // DİGƏR OYUNÇUNU YARAT
+// ==============================
 function addOtherPlayer(id, player) {
-  if (id === socket.id || !id) return;
+  if (!id || id === socket.id) return;
 
   if (!otherCars[id]) {
     otherCars[id] = makeCar(0x2288ff);
   }
 
   const p = player || {};
-  const car = otherCars[id];
 
   targetPositions[id] = {
     x: Number(p.x) || 0,
@@ -153,34 +174,32 @@ function addOtherPlayer(id, player) {
     speed: Math.max(0, Number(p.speed) || 0)
   };
 
-  car.position.set(
-    targetPositions[id].x,
-    0,
-    targetPositions[id].z
-  );
-  car.rotation.y = targetPositions[id].rotation;
-
   updatePlayerCount();
 }
 
+// ==============================
 // SERVERƏ QOŞULMA
+// ==============================
 socket.on("connect", () => {
-  status.textContent = "Serverə qoşuldu!";
+  if (status) status.textContent = "Serverə qoşuldu!";
   updatePlayerCount();
 });
 
 socket.on("disconnect", () => {
-  status.textContent = "Serverdən ayrıldı.";
+  if (status) status.textContent = "Serverdən ayrıldı.";
   updatePlayerCount();
 });
 
-socket.on("connect_error", () => {
-  status.textContent = "Serverə qoşulmaq alınmadı.";
+socket.on("connect_error", error => {
+  if (status) {
+    status.textContent = "Qoşulma xətası: " + error.message;
+  }
 });
 
-// SERVERDƏKİ OYUNÇULAR
+// ==============================
+// MÖVCUD OYUNÇULAR
+// ==============================
 socket.on("players", players => {
-  // Əvvəlki siyahını təmizlə ki, təkrar maşınlar qalmasın.
   for (const id in otherCars) {
     scene.remove(otherCars[id]);
     delete otherCars[id];
@@ -196,30 +215,40 @@ socket.on("players", players => {
   updatePlayerCount();
 });
 
+// ==============================
 // YENİ OYUNÇU
+// ==============================
 socket.on("playerJoined", data => {
-  if (data) addOtherPlayer(data.id, data.player);
-});
-
-// DİGƏR OYUNÇUNUN HƏRƏKƏTİ
-socket.on("playerMoved", data => {
-  if (!data || data.id === socket.id) return;
-
-  if (!otherCars[data.id]) {
+  if (data) {
     addOtherPlayer(data.id, data.player);
   }
+});
+
+// ==============================
+// DİGƏR MAŞININ HƏRƏKƏTİ
+// ==============================
+socket.on("playerMoved", data => {
+  if (!data || !data.id || data.id === socket.id) return;
 
   const p = data.player || {};
 
+  if (!otherCars[data.id]) {
+    addOtherPlayer(data.id, p);
+  }
+
   targetPositions[data.id] = {
-    x: Number(p.x) || 0,
-    z: Number(p.z) || 4,
-    rotation: Number(p.rotation) || 0,
+    x: Number.isFinite(Number(p.x)) ? Number(p.x) : 0,
+    z: Number.isFinite(Number(p.z)) ? Number(p.z) : 4,
+    rotation: Number.isFinite(Number(p.rotation))
+      ? Number(p.rotation)
+      : 0,
     speed: Math.max(0, Number(p.speed) || 0)
   };
 });
 
+// ==============================
 // OYUNÇU ÇIXDI
+// ==============================
 socket.on("playerLeft", id => {
   if (otherCars[id]) {
     scene.remove(otherCars[id]);
@@ -230,13 +259,21 @@ socket.on("playerLeft", id => {
   updatePlayerCount();
 });
 
+// ==============================
 // OYUNA BAŞLA
-document.getElementById("start").addEventListener("click", () => {
-  running = true;
-  menu.style.display = "none";
-});
+// ==============================
+const startButton = document.getElementById("start");
 
+if (startButton) {
+  startButton.addEventListener("click", () => {
+    running = true;
+    if (menu) menu.style.display = "none";
+  });
+}
+
+// ==============================
 // TELEFON DÜYMƏLƏRİ
+// ==============================
 function bindButton(id, setter) {
   const button = document.getElementById(id);
   if (!button) return;
@@ -259,20 +296,28 @@ bindButton("left", value => left = value);
 bindButton("right", value => right = value);
 bindButton("gas", value => gas = value);
 
+// ==============================
 // KLAVİATURA
+// ==============================
 window.addEventListener("keydown", event => {
-  if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") left = true;
-  if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") right = true;
-  if (event.key === "ArrowUp" || event.key.toLowerCase() === "w") gas = true;
+  const key = event.key.toLowerCase();
+
+  if (key === "arrowleft" || key === "a") left = true;
+  if (key === "arrowright" || key === "d") right = true;
+  if (key === "arrowup" || key === "w") gas = true;
 });
 
 window.addEventListener("keyup", event => {
-  if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") left = false;
-  if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") right = false;
-  if (event.key === "ArrowUp" || event.key.toLowerCase() === "w") gas = false;
+  const key = event.key.toLowerCase();
+
+  if (key === "arrowleft" || key === "a") left = false;
+  if (key === "arrowright" || key === "d") right = false;
+  if (key === "arrowup" || key === "w") gas = false;
 });
 
+// ==============================
 // OYUN DÖVRÜ
+// ==============================
 const clock = new THREE.Clock();
 let sendTimer = 0;
 
@@ -303,7 +348,11 @@ function animate() {
       }
     }
 
-    // MÖVQE VƏ SÜRƏTİ SERVERƏ GÖNDƏR
+    // MAŞININ DÖNMƏSİ
+    const steering = (right ? 1 : 0) - (left ? 1 : 0);
+    myCar.rotation.y = -steering * 0.08;
+
+    // SERVERƏ HƏRƏKƏT GÖNDƏR
     sendTimer += dt;
 
     if (sendTimer >= 0.05 && socket.connected) {
@@ -326,16 +375,23 @@ function animate() {
     if (!target) continue;
 
     car.position.x = THREE.MathUtils.lerp(
-      car.position.x, target.x, 0.2
+      car.position.x,
+      target.x,
+      Math.min(1, 10 * dt)
     );
 
     car.position.z = THREE.MathUtils.lerp(
-      car.position.z, target.z, 0.2
+      car.position.z,
+      target.z,
+      Math.min(1, 10 * dt)
     );
 
-    car.rotation.y = THREE.MathUtils.lerp(
-      car.rotation.y, target.rotation, 0.2
+    const angleDifference = Math.atan2(
+      Math.sin(target.rotation - car.rotation.y),
+      Math.cos(target.rotation - car.rotation.y)
     );
+
+    car.rotation.y += angleDifference * Math.min(1, 10 * dt);
   }
 
   // KAMERA
@@ -346,12 +402,16 @@ function animate() {
 
   camera.lookAt(x * 0.3, 0.5, -5);
 
-  speedLabel.textContent = "Sürət: " + Math.round(speed);
+  if (speedLabel) {
+    speedLabel.textContent = "Sürət: " + Math.round(speed);
+  }
 
   renderer.render(scene, camera);
 }
 
+// ==============================
 // EKRAN ÖLÇÜSÜ
+// ==============================
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
