@@ -1,3 +1,4 @@
+
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
 // SƏHNƏ
@@ -70,7 +71,6 @@ function makeCar(color) {
       roughness: 0.35
     })
   );
-
   body.position.y = 0.65;
   car.add(body);
 
@@ -82,7 +82,6 @@ function makeCar(color) {
       roughness: 0.2
     })
   );
-
   cabin.position.set(0, 1.15, -0.15);
   car.add(cabin);
 
@@ -92,7 +91,6 @@ function makeCar(color) {
         new THREE.CylinderGeometry(0.32, 0.32, 0.22, 16),
         new THREE.MeshStandardMaterial({ color: 0x111111 })
       );
-
       wheel.rotation.z = Math.PI / 2;
       wheel.position.set(x, 0.35, z);
       car.add(wheel);
@@ -111,11 +109,11 @@ function makeCar(color) {
 const myCar = makeCar(0xff3028);
 myCar.position.set(0, 0, 4);
 
-// MULTIPLAYER BAĞLANTISI
+// MULTIPLAYER
 const socket = io();
 
-const otherCars = {};
-const targetPositions = {};
+const otherCars = Object.create(null);
+const targetPositions = Object.create(null);
 
 let x = 0;
 let speed = 0;
@@ -129,32 +127,38 @@ const status = document.getElementById("status");
 const speedLabel = document.getElementById("speed");
 const playersLabel = document.getElementById("players");
 
-// DİGƏR OYUNÇUNUN MAŞININI YARAT
+// OYUNÇU SAYINI DÜZGÜN HESABLA
+function updatePlayerCount() {
+  const count = Object.keys(otherCars).length +
+    (socket.connected ? 1 : 0);
+
+  playersLabel.textContent = "Oyunçular: " + count;
+}
+
+// DİGƏR OYUNÇUNU YARAT
 function addOtherPlayer(id, player) {
-  if (id === socket.id) return;
+  if (id === socket.id || !id) return;
 
   if (!otherCars[id]) {
     otherCars[id] = makeCar(0x2288ff);
   }
 
+  const p = player || {};
   const car = otherCars[id];
 
-  // İlk mövqeyi dərhal təyin et
-  if (player) {
-    car.position.set(
-      Number(player.x) || 0,
-      0,
-      Number(player.z) || 4
-    );
+  targetPositions[id] = {
+    x: Number(p.x) || 0,
+    z: Number(p.z) || 4,
+    rotation: Number(p.rotation) || 0,
+    speed: Math.max(0, Number(p.speed) || 0)
+  };
 
-    car.rotation.y = Number(player.rotation) || 0;
-
-    targetPositions[id] = {
-      x: Number(player.x) || 0,
-      z: Number(player.z) || 4,
-      rotation: Number(player.rotation) || 0
-    };
-  }
+  car.position.set(
+    targetPositions[id].x,
+    0,
+    targetPositions[id].z
+  );
+  car.rotation.y = targetPositions[id].rotation;
 
   updatePlayerCount();
 }
@@ -162,14 +166,27 @@ function addOtherPlayer(id, player) {
 // SERVERƏ QOŞULMA
 socket.on("connect", () => {
   status.textContent = "Serverə qoşuldu!";
+  updatePlayerCount();
+});
+
+socket.on("disconnect", () => {
+  status.textContent = "Serverdən ayrıldı.";
+  updatePlayerCount();
 });
 
 socket.on("connect_error", () => {
   status.textContent = "Serverə qoşulmaq alınmadı.";
 });
 
-// SERVERDƏ OLAN OYUNÇULAR
+// SERVERDƏKİ OYUNÇULAR
 socket.on("players", players => {
+  // Əvvəlki siyahını təmizlə ki, təkrar maşınlar qalmasın.
+  for (const id in otherCars) {
+    scene.remove(otherCars[id]);
+    delete otherCars[id];
+    delete targetPositions[id];
+  }
+
   for (const id in players) {
     if (id !== socket.id) {
       addOtherPlayer(id, players[id]);
@@ -179,25 +196,26 @@ socket.on("players", players => {
   updatePlayerCount();
 });
 
-// YENİ OYUNÇU QOŞULDU
+// YENİ OYUNÇU
 socket.on("playerJoined", data => {
-  addOtherPlayer(data.id, data.player);
+  if (data) addOtherPlayer(data.id, data.player);
 });
 
-// DİGƏR OYUNÇU HƏRƏKƏT EDİR
+// DİGƏR OYUNÇUNUN HƏRƏKƏTİ
 socket.on("playerMoved", data => {
-  if (data.id === socket.id) return;
+  if (!data || data.id === socket.id) return;
 
-  // Hərəkət mesajı maşın yaradılmamışdan əvvəl gəlsə belə,
-  // maşını yarat.
   if (!otherCars[data.id]) {
     addOtherPlayer(data.id, data.player);
   }
 
+  const p = data.player || {};
+
   targetPositions[data.id] = {
-    x: Number(data.player.x) || 0,
-    z: Number(data.player.z) || 4,
-    rotation: Number(data.player.rotation) || 0
+    x: Number(p.x) || 0,
+    z: Number(p.z) || 4,
+    rotation: Number(p.rotation) || 0,
+    speed: Math.max(0, Number(p.speed) || 0)
   };
 });
 
@@ -212,13 +230,6 @@ socket.on("playerLeft", id => {
   updatePlayerCount();
 });
 
-// OYUNÇU SAYI
-function updatePlayerCount() {
-  playersLabel.textContent =
-    "Oyunçular: " + (socket.connected ? 1 : 0) +
-    Object.keys(otherCars).length;
-}
-
 // OYUNA BAŞLA
 document.getElementById("start").addEventListener("click", () => {
   running = true;
@@ -228,6 +239,7 @@ document.getElementById("start").addEventListener("click", () => {
 // TELEFON DÜYMƏLƏRİ
 function bindButton(id, setter) {
   const button = document.getElementById(id);
+  if (!button) return;
 
   button.addEventListener("pointerdown", event => {
     event.preventDefault();
@@ -249,15 +261,15 @@ bindButton("gas", value => gas = value);
 
 // KLAVİATURA
 window.addEventListener("keydown", event => {
-  if (event.key === "ArrowLeft" || event.key === "a") left = true;
-  if (event.key === "ArrowRight" || event.key === "d") right = true;
-  if (event.key === "ArrowUp" || event.key === "w") gas = true;
+  if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") left = true;
+  if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") right = true;
+  if (event.key === "ArrowUp" || event.key.toLowerCase() === "w") gas = true;
 });
 
 window.addEventListener("keyup", event => {
-  if (event.key === "ArrowLeft" || event.key === "a") left = false;
-  if (event.key === "ArrowRight" || event.key === "d") right = false;
-  if (event.key === "ArrowUp" || event.key === "w") gas = false;
+  if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") left = false;
+  if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") right = false;
+  if (event.key === "ArrowUp" || event.key.toLowerCase() === "w") gas = false;
 });
 
 // OYUN DÖVRÜ
@@ -282,7 +294,7 @@ function animate() {
     myCar.position.x = x;
     myCar.position.z = 4;
 
-    // YOL XƏTLƏRİNİ HƏRƏKƏT ETDİR
+    // ÖZ YOLUMUZUN XƏTLƏRİ
     for (const line of markings) {
       line.position.z += speed * dt;
 
@@ -291,21 +303,22 @@ function animate() {
       }
     }
 
-    // MƏLUMATI SERVERƏ GÖNDƏR
+    // MÖVQE VƏ SÜRƏTİ SERVERƏ GÖNDƏR
     sendTimer += dt;
 
     if (sendTimer >= 0.05 && socket.connected) {
       socket.emit("move", {
         x: myCar.position.x,
         z: myCar.position.z,
-        rotation: myCar.rotation.y
+        rotation: myCar.rotation.y,
+        speed: speed
       });
 
       sendTimer = 0;
     }
   }
 
-  // DİGƏR OYUNÇULARIN MAŞINLARINI YUMŞAQ HƏRƏKƏT ETDİR
+  // DİGƏR OYUNÇULARIN MAŞINLARI
   for (const id in otherCars) {
     const car = otherCars[id];
     const target = targetPositions[id];
@@ -313,21 +326,15 @@ function animate() {
     if (!target) continue;
 
     car.position.x = THREE.MathUtils.lerp(
-      car.position.x,
-      target.x,
-      0.2
+      car.position.x, target.x, 0.2
     );
 
     car.position.z = THREE.MathUtils.lerp(
-      car.position.z,
-      target.z,
-      0.2
+      car.position.z, target.z, 0.2
     );
 
     car.rotation.y = THREE.MathUtils.lerp(
-      car.rotation.y,
-      target.rotation,
-      0.2
+      car.rotation.y, target.rotation, 0.2
     );
   }
 
@@ -348,7 +355,6 @@ function animate() {
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
