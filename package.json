@@ -1,1 +1,13 @@
-
+{
+  "name": "turbo-3d-multiplayer",
+  "version": "1.0.0",
+  "description": "3D online multiplayer car racing game",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
